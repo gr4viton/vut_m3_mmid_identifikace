@@ -45,19 +45,23 @@ global z
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Vlastní identifikace
 
+ident_param = 0; %parametry použije (již vypoètené - pro debugging)
+% ident_param = 1; %identifikuje parametry
+%% parametry
+if ident_param == 1
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% casovy vektor
-tend = 3400;
-tstep = 1.5;
-z = tf('z',tstep);
-
-
-% [K,Td,T] = c02_1(tend, tstep, nmean, stepRespFcn)
-% t = ( 0:tstep:(tend-tstep) )';
-
-[t,nsteps] = GET_t(tend,tstep);
-% nsteps = length(t);
-% N = nsteps;
+% tend = 3400;
+% tstep = 1.5;
+% z = tf('z',tstep);
+% 
+% 
+% % [K,Td,T] = c02_1(tend, tstep, nmean, stepRespFcn)
+% % t = ( 0:tstep:(tend-tstep) )';
+% 
+% [t,nsteps] = GET_t(tend,tstep);
+% % nsteps = length(t);
+% % N = nsteps;
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% vstupní signál
@@ -99,8 +103,8 @@ tsteps = linspace(min_tstep,max_tstep,count_tstep);
 len_ts = length(tsteps);
 cols = hsv(count_tstep);
 for q = 1:len_ts
-    tstep = tsteps(q);
-    [t,nsteps] = GET_t(tend,tstep);
+    TSTEP = tsteps(q);
+    [t,nsteps] = GET_t(tend,TSTEP);
     u = utry*ones(nsteps,1);
     y = getResponse(u,t);
     stairs(t,y,'Color',cols(q,:));
@@ -109,6 +113,9 @@ for q = 1:len_ts
     ystep{q} = y;
     ystep_tt{q} = t;
 end
+title(sprintf('[%.2f]×jednotkový skok, pro rùzné hodnoty èasové konstanty',utry));
+xlabel(str_ind)
+ylabel(str_val)
 
 %% vypoèteme hodonotu ustáleného signálu, jakožto prùmìr ze druhé poloviny 
 % èasového intervalu, signálù jenž nevypadli
@@ -140,6 +147,9 @@ hold on
 plot(tt,ons*y_stable,'k', 'LineWidth',4, 'LineStyle', '--');
 plot(tt,ons*y_up,'g','LineWidth',4, 'LineStyle', '--');
 
+xlabel(str_ind)
+ylabel(str_val)
+
 %% zjistíme èas ve kterém mìl výstup hodnotu menší než [y_up]
 % ze signálu s nejmenší èasovou konstantou (pokud nemá u zaèátku výpadek)
 for e = 1:10
@@ -168,13 +178,13 @@ for e = 1:10
 end
 
 %% nabezny cas
-t_up = tt(fG);
+T_UP = tt(fG);
 SI=SI+1;subplot(SY,SX,SI)
 
 
-tend = 4*t_up;
-tstep = t_up / 10;
-[t,nsteps] = GET_t(tend,tstep);
+tend = 4*T_UP;
+TSTEP = T_UP / 10;
+[t,nsteps] = GET_t(tend,TSTEP);
 u = utry*ones(nsteps,1);
 
 %% plotting
@@ -187,12 +197,12 @@ hold on
 plot(tt,ons*y_stable,'k', 'LineWidth',4, 'LineStyle', '--');
 plot(tt,ons*y_up,'g','LineWidth',4, 'LineStyle', '--');
 
-tt_up = [t_up, t_up+0.01*tstep];
+tt_up = [T_UP, T_UP+0.01*TSTEP];
 yy_up = [0,y_stable*1.5];
 plot(tt_up,yy_up,'b','LineWidth',4, 'LineStyle', '--');
 
 legend('y-step output','y-stable','y-rising','t-up');
-tit = sprintf('priblizna doba nabehu Tup[%.2f] -> vzorkovaci frekvence[%.2f]',t_up,tstep);
+tit = sprintf('priblizna doba nabehu Tup[%.2f] -> vzorkovaci frekvence[%.2f]',T_UP,TSTEP);
 title(tit);
 grid on
 axis tight
@@ -204,35 +214,36 @@ axis tight
 figure('Position',screen_full); SX=1 ;SY=3 ;SI=0;
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % :: bez vstupu
-tit = 'bez vstupu';
+tit = 'bez vstupu - nulový vstupní signál';
 
-tend = t_up*100;
-[t,nsteps] = GET_t(tend,tstep);
+tend = T_UP*100;
+[t,nsteps] = GET_t(tend,TSTEP);
 
 u = zeros(nsteps,1);
 y = getResponse(u,t);
 
 mu = mean(y);
 o = mu * ones(1,nsteps);
-noise_max = max(abs(y));
-n = noise_max * ones(1,nsteps);
+NOISE_MAX = max(abs(y));
+o_n = NOISE_MAX * ones(1,nsteps);
 
 % ploting
 SI=SI+1;subplot(SY,SX,SI)
-stairs(t,u,'g')
+stairs(t,u,'b')
 hold on
 stairs(t,y,'r')
 stairs(t,o,'c')
-stairs(t,n,'g')
-stairs(t,-n,'g')
+stairs(t,o_n,'g')
+stairs(t,-o_n,'g')
 grid on
 title(tit)
 
 txmu = strcat('mean=[',num2str(mu),']');
-txno = strcat('noise=[',num2str(noise_max),']');
+txno = strcat('noise=[',num2str(NOISE_MAX),']');
 legend('u(k)','y(k)',txmu,txno)
 xlabel(str_tim)
 ylabel(str_val)
+axis tight
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % z odezvy na nulový signál vidíme že systém vykazuje:
@@ -265,12 +276,12 @@ ylabel(str_val)
 % :: rostoucí signál
 tit = 'lineárnì rostoucí signál';
 
-tend = t_up*1000;
-[t,nsteps] = GET_t(tend,tstep);
+tend = T_UP*1000;
+[t,nsteps] = GET_t(tend,TSTEP);
 
 % do kolika rùst 
 % - viz nìjaký násobek noise_max, aby už se projevila nelinearita
-utry = 5*noise_max; 
+utry = 5*NOISE_MAX; 
 
 % poèet intervalù
 qint_count = 20; 
@@ -282,10 +293,9 @@ min_length_coef = 0.3;
 min_length = round(qint_len * min_length_coef); 
 
 % vstupní lineárnì rostoucí signál
-u = linspace(noise_max,utry,nsteps)'; 
+u = linspace(NOISE_MAX,utry,nsteps)'; 
 y = getResponse(u,t);
 
-y(1:50) = 0;
 
 %% výpoèet maximální velikosti vstupu pøi kterém se systém chová lineárnì
 
@@ -378,10 +388,10 @@ end
     
 %% derivace smìrnice
 tstep2 = 1; % dame že krok je jedna protože jedeme pøes indexy ve slope
-zz = tf('z',tstep2);
+z = tf('z',tstep2);
 
 % diskretni derivator
-DFormula = tstep2/2*(zz + 1)/(zz-1); 
+DFormula = tstep2/2*(z + 1)/(z-1); 
 Td = 1;
 N = 1;
 tf_deriv = Td / (Td/N + DFormula);
@@ -398,7 +408,7 @@ slope_dif = lsim(Fz,slope,tslope);
 % ještì jeden ubereme abysme si byli opravdu jistí
 q_G = q - 2;
 % hodnota vstupu pro kterou se systém ještì urèitì choval lineárnì
-u_lin_max = u(qind(q_G));
+U_LINMAX = u(qind(q_G));
 % u_lin_max = u(round(1900/tstep)) % odeèteno z grafu
 
 %% ploting
@@ -417,6 +427,7 @@ legend('u(k)','y(k)')
 xlabel(str_tim)
 ylabel(str_val)
 grid on
+axis tight
 
  sii=sii+1;
 subplot(SY,sxx,sii)
@@ -433,6 +444,7 @@ xlabel(str_ind)
 ylabel(str_val)
 grid on
 title(tit)
+axis tight
 
 % smìrnice
 sii=sii+1;
@@ -444,7 +456,10 @@ for q=1:qint_count
     hold on
 end
 title(strcat('smìrnice - ',tit));
+xlabel(str_ind)
+ylabel(str_val)
 grid on
+axis tight
 
 % derivace smìrnice
 sii=sii+1;
@@ -456,18 +471,20 @@ for q=1:qint_count
     hold on
 end
 title(strcat('derivace smìrnice - ',tit));
+xlabel(str_ind)
+ylabel(str_val)
 grid on
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % :: jednotkový skok - znovu tentokrát urèitì lineární
-tit = sprintf('[%.2f]×jednotkový skok',u_lin_max);
+tit = sprintf('[%.2f]×jednotkový skok',U_LINMAX);
 
-tend = t_up*1000;
-[t,nsteps] = GET_t(tend,tstep);
+tend = T_UP*1000;
+[t,nsteps] = GET_t(tend,TSTEP);
 
 % pokud vynechám signál s poruchou èidla mùžu zjistit statické zesílení K
 
-u = u_lin_max * ones(nsteps,1);
+u = U_LINMAX * ones(nsteps,1);
 y = getResponse(u,t);
 
 
@@ -479,7 +496,7 @@ qmax = qint_count+1;
 min_length = 5;
 
 % pro odeznìní dynamiky
-t_start = t_up * 42;
+t_start = T_UP * 42;
 
 % intervaly
 qind = floor(linspace(t_start,nsteps+1,qmax));
@@ -504,7 +521,7 @@ for q=1:qint_count
     imean=imean+1;
 end
 y_stable = mean(y_stable_mean);
-K = y_stable / u_lin_max
+K = y_stable / U_LINMAX;
 tit = sprintf('%s K[%.2f]',tit,K);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -519,7 +536,7 @@ hold on
 % y
 stairs(t,y,'r')
 % stable
-tt= [0, tend]
+tt= [0, tend];
 ons = [1,1];
 plot(tt,ons*y_stable,'k','LineWidth',3,'LineStyle','--');
 
@@ -528,20 +545,40 @@ legend('u(k)','y(k)')
 xlabel(str_tim)
 ylabel(str_val)
 grid on
-% ____________________________________________________
+axis tight
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % :: sinus
 % u = sin(2*pi*0.1*t)+sin(2*pi+0.3*t)+sin(2*pi+0.01*t);
 
 
 % ____________________________________________________
 
-%% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-error('I don''t want to play anymore')
+
+%% odstranìní stejnosmìrné složky
+% není potøeba - není tam 
+% provedlo by se odeètením 
+
+%% odstranìní dopravního zpoždìní
+
+%% odstranìní výpadku èidla
+
+else
+    %% v pøípadì že nechci poèítat
+    K = 1.999
+    U_LINMAX = 2.6123
+    TSTEP = 0.42
+    T_UP = TSTEP * 10;
+    NOISE_MAX = 0.8707
+end
+
+
+
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % :: PRBS
 
-tend = 1600;
-[t,nsteps] = GET_t(tend,tstep);
+tend = T_UP*100;
+[t,nsteps] = GET_t(tend,TSTEP);
 
 % where B is such that the signal is constant over intervals of length 1/B
 % (the clock period)
@@ -554,30 +591,27 @@ band = [0, 0.1];
 
 % ____________________________________________________
 % rozsah vstupniho signalu
-u_lin_max = 5;
-umin = -u_lin_max; 
+% U_LINMAX = 5;
+umax = U_LINMAX;
+umin = -umax; 
 % umin = 0;
-levels = [umin, u_lin_max];
+levels = [umin, umax];
 % levels = [-1 1];
 
 u = idinput(nsteps, 'prbs', band, levels);
 
 %% odezva
-y_ = zeros(nsteps,1);
-% qmax = 42;
-qmax = 10;
-for q=1:qmax
-    y_ = y_ + getResponse(u,t);
-end
-y = y_ / qmax;
 
-%% odstranìní stejnosmìrné složky
-% není potøeba - není tam
+%% prumìrování
+% y_ = zeros(nsteps,1);
+% % qmax = 42;
+% qmax = 10;
+% for q=1:qmax
+%     y_ = y_ + getResponse(u,t);
+% end
+% y = y_ / qmax;
 
-%% odstranìní dopravního zpoždìní
-
-%% odstranìní výpadku èidla
-
+y = getResponse(u,t);
 %% lineární regrese
 % u(k)
 % u(k+1) = u( (1+1):(end-off+1) ) = u(2:end-1)
@@ -585,25 +619,25 @@ y = y_ / qmax;
 % phi(u(k+1), u(k+2), .., u(k+m-1), y(k+1), y(k+2), .., y(k+n-1) ) 
 % theta(b0, b1, b2,.., bm, a0, a1, a2,..,an)
 
-m = 2;
-n = 3;
+% orders
+o_m = 1;
+o_n = 2;
 
-
-off = max([m,n]);
+off = max([o_m, o_n]);
 k = 1:(length(u)-off);
 
 % vytvoøení matice phi
 uks = [];
 yks = [];
-for q = 1 : (m+1)
-    uks = cat(2, uks, u(k+m) );
+for q = 1 : (o_m)
+    uks = cat(2, uks, u(k+o_m) );
 end
-for q = 1 : (n+1)
-    yks = cat(2, yks, -y(k+m) );
+for q = 1 : (o_n+1)
+    yks = cat(2, yks, y(k+o_m) );
 end
 
-phi = cat( 2, uks, yks );
-
+psi = y(k);
+phi = cat( 2, uks, -yks );
 %% reseni
 % k = 2:length(u)
 % phi1 = [u(k-1), - y(k-1);
@@ -612,22 +646,23 @@ phi = cat( 2, uks, yks );
 % Fz1 = (TH1(1)) / (z+TH1(2))
 
 %%
-rad = 2;
-theta = phi \ y(k);
+% rad = 2;
+theta = phi \ psi;
 % theta = phi(1:end-2,:) \ y(3:end);
 
 
 % phi(u(k-1), u(k-2), .., u(k-m-1), y(k-1), y(k-2), .., y(k-n-1) ) 
 % theta(b0, b1, b2,.., bm, a0, a1, a2,..,an)
 
+z = tf('z',TSTEP);
 numerator = 0;
 denominator = 1;
-for q = 1 : (m+1)
+for q = 1 : (o_m+1)
     numerator = numerator + theta(q) * z^-q;
 end
 
-for q = 1 : (n+1)
-    denominator = denominator + theta(m+1+q) * z^-q;
+for q = 0 : (o_n+1)
+    denominator = denominator + theta(o_m+1+q) * z^-q;
 end
 % for q = 0 : (n)
 %     denominator = denominator + theta(m+1+q) * z^-q;
@@ -663,4 +698,10 @@ stairs(t,yi,'b')
 
 grid on
 legend('u(k)','y(k)','y_{ident}(k)')
+xlabel(str_tim)
+ylabel(str_val)
+axis tight
 
+
+%% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+error('I don''t want to play anymore')
