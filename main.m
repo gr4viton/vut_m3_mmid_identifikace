@@ -35,6 +35,9 @@ wid = scrsz(3)/3;
 screen_third = [2*wid scrsz(4)/2 wid scrsz(4)/2];
 screen_full = [1 1 scrsz(3) scrsz(4)];
 global SI SX SY
+str_tim = 'time [s]';
+str_val = 'value [1]';
+str_ind = 'index [1]';
 
 global z
 
@@ -79,13 +82,15 @@ min_tstep = 0.1;
 max_tstep = 10;
 count_tstep = 20;
 
-utry = 10; 
 % dìlám že nevím kolik by mìlo být zesílení, které jsem pozdìji vypoèítal
 % obecnì musím vidìt že signál je mimo šum
-tend = 100*max_tstep;
+utry = 10; 
+
 % pøedpokládám že èasová konstanta systému nebude zas až tak extrémní, a
 % øeknìme, že bude maximálnì 100×delší než nejdelší odhadovaný vzorkovací
 % èas (respektive 50× -> viz druhá pùlka pøi výpoètu dále)
+tend = 100*max_tstep;
+
 
 figure('Position',screen_full); SX=1 ;SY=2 ;SI=0;
 SI=SI+1;subplot(SY,SX,SI)
@@ -102,9 +107,10 @@ for q = 1:len_ts
     hold on
     
     ystep{q} = y;
+    ystep_tt{q} = t;
 end
 
-% vypoèteme hodonotu ustáleného signálu, jakožto prùmìr ze druhé poloviny 
+%% vypoèteme hodonotu ustáleného signálu, jakožto prùmìr ze druhé poloviny 
 % èasového intervalu, signálù jenž nevypadli
 
 % minimum nenulových krokù v druhé pùlce intervalu odezvy na jednotkový skok
@@ -123,6 +129,7 @@ for q = 1:len_ts
     yG_mean(imean) = mean(yG);
     imean = imean+1;
 end
+% magnifyOnFigure.m
 
 y_stable = mean(yG_mean(:));
 y_up = 0.7*y_stable;
@@ -133,32 +140,64 @@ hold on
 plot(tt,ons*y_stable,'k', 'LineWidth',4, 'LineStyle', '--');
 plot(tt,ons*y_up,'g','LineWidth',4, 'LineStyle', '--');
 
-% zjistíme èas ve kterém mìl výstup hodnotu menší než [y_up]
+%% zjistíme èas ve kterém mìl výstup hodnotu menší než [y_up]
 % ze signálu s nejmenší èasovou konstantou (pokud nemá u zaèátku výpadek)
-y = ystep{end};
-% hodnoty krokù které splòují podmínku inverzní - lépe se hledá
+for e = 1:10
+    y = ystep{1};
+    tt = ystep_tt{1};
+    % hodnoty krokù které splòují podmínku inverzní - lépe se hledá
 
-figure
-subplot(121)
-f = find(y>=y_up);
-plot( f )
-subplot(122)
-plot( f,y(f) )
-hold on
-val = y( f(1) );
-tt2=[0,length(f)];
-plot(tt2,ons*val,'LineWidth',3);
-axis normal
+    f = find(y>=y_up);
+    % první vìtší
+    fG = f(1);
 
+    [~, indG] = GET_intGood(y);
+    if indG > fG
+        % pøi tomto vzorkování vypadlo èidlo døíve než dosáhlo dané hodnoty
+        % -> zkusíme to znovu 
+    else 
+        break
+    end
+    if e==10
+       txt = sprintf('%s\n%s%i%s',...
+           'Èidlo opakovanì (10×) vypadáva pøi nejmenším zvoleném èasu vzorkování [min_tstep],',...
+           'prosím zvolte jinou hodnotu než ',min_tstep, '(pravdìpodobnì vìtší).');
+       
+       error(txt)
+    end
+end
+
+%% nabezny cas
+t_up = tt(fG);
 SI=SI+1;subplot(SY,SX,SI)
 
 
-% [yG, indG] = GET_intGood(y);
-% if indG
+tend = 4*t_up;
+tstep = t_up / 10;
+[t,nsteps] = GET_t(tend,tstep);
+u = utry*ones(nsteps,1);
+
+%% plotting
+y = getResponse(u,t);    
+tt = [0,tend];
+ons = ones(2,1);
+
+plot(t,y,'r')
+hold on
+plot(tt,ons*y_stable,'k', 'LineWidth',4, 'LineStyle', '--');
+plot(tt,ons*y_up,'g','LineWidth',4, 'LineStyle', '--');
+
+tt_up = [t_up, t_up+0.01*tstep];
+yy_up = [0,y_stable*1.5];
+plot(tt_up,yy_up,'b','LineWidth',4, 'LineStyle', '--');
+
+legend('y-step output','y-stable','y-rising','t-up');
+tit = sprintf('priblizna doba nabehu Tup[%.2f] -> vzorkovaci frekvence[%.2f]',t_up,tstep);
+title(tit);
+grid on
+axis tight
 
 
-%% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-error('I don''t want to play anymore')
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % následující 3 vstupy vykreslit pospolu
@@ -166,6 +205,10 @@ figure('Position',screen_full); SX=1 ;SY=3 ;SI=0;
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % :: bez vstupu
 tit = 'bez vstupu';
+
+tend = t_up*100;
+[t,nsteps] = GET_t(tend,tstep);
+
 u = zeros(nsteps,1);
 y = getResponse(u,t);
 
@@ -188,8 +231,8 @@ title(tit)
 txmu = strcat('mean=[',num2str(mu),']');
 txno = strcat('noise=[',num2str(noise_max),']');
 legend('u(k)','y(k)',txmu,txno)
-xlabel('time [s]')
-ylabel('value [1]')
+xlabel(str_tim)
+ylabel(str_val)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % z odezvy na nulový signál vidíme že systém vykazuje:
@@ -215,15 +258,14 @@ ylabel('value [1]')
 % stairs(t,y,'r')
 % title(tit)
 % legend('u(k)','y(k)')
-% xlabel('time [s]')
-% ylabel('value [1]')
+% xlabel(str_tim)
+% ylabel(str_val)
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % :: rostoucí signál
 tit = 'lineárnì rostoucí signál';
 
-
-tend = 3000;
+tend = t_up*1000;
 [t,nsteps] = GET_t(tend,tstep);
 
 % do kolika rùst 
@@ -351,6 +393,7 @@ slope_dif = lsim(Fz,slope,tslope);
 
 % no a tady už jasnì vidím ten nejvìtší zlom se projeví jakožto vysoký peak
 [~, q] = max(slope_dif);
+
 % index posledního lineárnì se tváøícího intervalu 
 % ještì jeden ubereme abysme si byli opravdu jistí
 q_G = q - 2;
@@ -371,8 +414,8 @@ hold on
 stairs(t,y,'r')
 title(tit)
 legend('u(k)','y(k)')
-xlabel('time [s]')
-ylabel('value [1]')
+xlabel(str_tim)
+ylabel(str_val)
 grid on
 
  sii=sii+1;
@@ -386,8 +429,8 @@ for q=1:qint_count
     stairs(tt,qy,'Color',cols(q,:))
     hold on
 end
-xlabel('time [s]')
-ylabel('value [1]')
+xlabel(str_ind)
+ylabel(str_val)
 grid on
 title(tit)
 
@@ -419,13 +462,49 @@ grid on
 % :: jednotkový skok - znovu tentokrát urèitì lineární
 tit = sprintf('[%.2f]×jednotkový skok',u_lin_max);
 
-tend = 3000;
+tend = t_up*1000;
 [t,nsteps] = GET_t(tend,tstep);
+
+% pokud vynechám signál s poruchou èidla mùžu zjistit statické zesílení K
 
 u = u_lin_max * ones(nsteps,1);
 y = getResponse(u,t);
-off = round(25/tstep);
-K = mean(y(off:end)) / u_lin_max
+
+
+% poèet intervalù
+qint_count = 20; 
+% poèet okrajù všech intervalù
+qmax = qint_count+1; 
+% minimální délka pro výpoèet
+min_length = 5;
+
+% pro odeznìní dynamiky
+t_start = t_up * 42;
+
+% intervaly
+qind = floor(linspace(t_start,nsteps+1,qmax));
+% init zeros
+slope = zeros(1,qint_count);
+
+imean = 1;
+for q=1:qint_count
+    % interval ze vstupu unorm1
+    tt = qind(q): (qind(q+1)-1);
+    qy = y( tt );
+    
+    % odštípne pøípadnou chybu
+    [qy_good, indG] = GET_intGood(qy);
+    %% pro tento signál se bude poèítat smìrnice
+    qlen = length(qy_good);
+    if qlen < min_length
+        % nemá cenu poèítat pro málo vzorkù
+        continue;
+    end
+    y_stable_mean(imean) = mean(qy_good);
+    imean=imean+1;
+end
+y_stable = mean(y_stable_mean);
+K = y_stable / u_lin_max
 tit = sprintf('%s K[%.2f]',tit,K);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -434,13 +513,20 @@ tit = sprintf('%s K[%.2f]',tit,K);
 %   - K =  (prùmìr po 20 kroku)
 % ploting
 SI=SI+1;subplot(SY,SX,SI)
+% u
 stairs(t,u,'g')
 hold on
+% y
 stairs(t,y,'r')
+% stable
+tt= [0, tend]
+ons = [1,1];
+plot(tt,ons*y_stable,'k','LineWidth',3,'LineStyle','--');
+
 title(tit)
 legend('u(k)','y(k)')
-xlabel('time [s]')
-ylabel('value [1]')
+xlabel(str_tim)
+ylabel(str_val)
 grid on
 % ____________________________________________________
 % :: sinus
@@ -449,6 +535,8 @@ grid on
 
 % ____________________________________________________
 
+%% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+error('I don''t want to play anymore')
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % :: PRBS
 
