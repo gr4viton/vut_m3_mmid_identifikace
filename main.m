@@ -139,7 +139,8 @@ end
 % magnifyOnFigure.m
 
 y_stable = mean(yG_mean(:));
-y_up = 0.7*y_stable;
+coef = 0.63;
+y_up = coef*y_stable;
 % plot those two
 tt = [0,tend];
 ons = ones(2,1);
@@ -479,14 +480,12 @@ grid on
 % :: jednotkový skok - znovu tentokrát urèitì lineární
 tit = sprintf('[%.2f]×jednotkový skok',U_LINMAX);
 
-tend = T_UP*1000;
+tend = T_UP*10000;
 [t,nsteps] = GET_t(tend,TSTEP);
 
 % pokud vynechám signál s poruchou èidla mùžu zjistit statické zesílení K
-
 u = U_LINMAX * ones(nsteps,1);
 y = getResponse(u,t);
-
 
 % poèet intervalù
 qint_count = 20; 
@@ -561,8 +560,6 @@ axis tight
 
 %% odstranìní dopravního zpoždìní
 
-%% odstranìní výpadku èidla
-
 else
     %% v pøípadì že nechci poèítat
     K = 1.999
@@ -573,12 +570,21 @@ else
 end
 
 
-
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % :: PRBS
 
-tend = T_UP*100;
+% tend = T_UP*100;
+full_prbs_nsteps = 40950;
+tend = ceil(full_prbs_nsteps * TSTEP);
 [t,nsteps] = GET_t(tend,TSTEP);
+t = ( 0:TSTEP:tend )';
+nsteps = full_prbs_nsteps;
+size(t)
+t = t(1:nsteps);
+size(t)
+nsteps
 
 % where B is such that the signal is constant over intervals of length 1/B
 % (the clock period)
@@ -592,13 +598,15 @@ band = [0, 0.1];
 % ____________________________________________________
 % rozsah vstupniho signalu
 % U_LINMAX = 5;
-umax = U_LINMAX;
+coef = 1 / 2  ;
+umax = U_LINMAX * coef;
 umin = -umax; 
 % umin = 0;
 levels = [umin, umax];
 % levels = [-1 1];
 
-u = idinput(nsteps, 'prbs', band, levels);
+uall = idinput(nsteps, 'prbs', band, levels); % full prbs sequence
+tall = t;
 
 %% odezva
 
@@ -611,7 +619,14 @@ u = idinput(nsteps, 'prbs', band, levels);
 % end
 % y = y_ / qmax;
 
-y = getResponse(u,t);
+yall = getResponse(uall,tall);
+
+coef = 4/5;
+half = floor(nsteps * coef);
+u = uall(1:half);
+y = yall(1:half);
+t = tall(1:half);
+
 %% lineární regrese
 % u(k)
 % u(k+1) = u( (1+1):(end-off+1) ) = u(2:end-1)
@@ -629,15 +644,37 @@ k = 1:(length(u)-off);
 % vytvoøení matice phi
 uks = [];
 yks = [];
-for q = 1 : (o_m)
-    uks = cat(2, uks, u(k+o_m) );
+for i_m = 0 : (o_m)
+    uks = cat(2, uks, u(k+i_m) );
 end
-for q = 1 : (o_n+1)
-    yks = cat(2, yks, y(k+o_m) );
+for i_n = 0 : (o_n-1)
+    yks = cat(2, yks, y(k+i_n) );
 end
 
 psi = y(k);
 phi = cat( 2, uks, -yks );
+
+%% odstranìní výpadku èidla
+y_not0 = y(2:end);
+ind0 = find(y_not0==0);
+if ind0
+%     size(psi)
+    psi(ind0) = [];
+%     size(psi)
+
+    ncol = size(phi,2);
+    nrow = size(phi,1);
+    qmax = length(ind0);
+    
+%     size(phi)
+    % musím odebírat odzadu
+    for q = qmax:-1:1
+        phi(ind0(q),:) = [];
+    end
+%     size(phi)
+    
+    disp(sprintf('Chyba èidla detekována! Celkem [%i z %i] vzorkù (%.2f%%) muselo být vyøazeno!',qmax,nrow,qmax/nrow*100));
+end
 %% reseni
 % k = 2:length(u)
 % phi1 = [u(k-1), - y(k-1);
@@ -657,13 +694,14 @@ theta = phi \ psi;
 z = tf('z',TSTEP);
 numerator = 0;
 denominator = 1;
-for q = 1 : (o_m+1)
-    numerator = numerator + theta(q) * z^-q;
+for i_m = 0 : (o_m)
+    numerator = numerator + theta(1+i_m) * z^+i_m;
+end
+off = o_m+1;
+for i_n = 0 : (o_n-1)
+    denominator = denominator + theta(off+1+i_n) * z^+i_n;
 end
 
-for q = 0 : (o_n+1)
-    denominator = denominator + theta(o_m+1+q) * z^-q;
-end
 % for q = 0 : (n)
 %     denominator = denominator + theta(m+1+q) * z^-q;
 % end
@@ -677,7 +715,12 @@ end
 % Fz = (b0*z^-1) / (1 + a0*z^-1 + a1*z^-2)
 % Fz = (b0*z^-1 + b1*z^-2) / (1 + a0*z^-1 + a1*z^-2)
 
-Fz = K * numerator / denominator 
+% Fz =  numerator / denominator  
+K = K*0.5;
+delay = 1;
+% delay = z^-1;
+Fz = K * numerator / denominator  * delay
+% s K nebo bez?
 % * z^-1
 
 % count the response of identified system
@@ -687,9 +730,10 @@ yi = lsim(Fz,u,t);
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % metoda pomocných promìnných
 
+
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% PLOTY
-figure('Position',screen_full);  SX=1 ;SY=1 ;SI=0;
+figure('Position',screen_full);  SX=1 ;SY=2 ;SI=0;
 SI=SI+1;subplot(SY,SX,SI)
 stairs(t,u,'g')
 hold on
@@ -701,7 +745,57 @@ legend('u(k)','y(k)','y_{ident}(k)')
 xlabel(str_tim)
 ylabel(str_val)
 axis tight
+title('nauèená data - trénovací množina - zkouška identifikace')
 
 
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ovìøení identifikace
+u = uall(half:end);
+y = yall(half:end);
+t = tall(half:end);
+yi = lsim(Fz,u,t);
+
+%% nìjakou porovnávací funkci..
+
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% ploty
+SI=SI+1;subplot(SY,SX,SI)
+stairs(t,u,'g')
+hold on
+stairs(t,y,'r')
+stairs(t,yi,'b')
+
+grid on
+legend('u(k)','y(k)','y_{ident}(k)')
+xlabel(str_tim)
+ylabel(str_val)
+axis tight
+title('nenauèená data - ovìøení identifikace')
 %% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 error('I don''t want to play anymore')
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%  jeden z funkèních ale divných
+%   1.78e-18 z + 2.687e-16
+%   -----------------------
+%   6.183e-16 z - 5.551e-16
+
+%   1.665e-17 z + 6.371e-16
+%   -----------------------
+%   5.357e-15 z - 5.107e-15
+
+
+ 
+%     3.764e-17 z + 3.204e-17
+%   ---------------------------
+%   5.114e-16 z^2 - 4.441e-16 z
+
+
+%% verry good
+
+%   -6.981e-17 z + 1.097e-15
+%   ------------------------
+%   4.673e-15 z - 4.219e-15
