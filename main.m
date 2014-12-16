@@ -19,10 +19,24 @@
 % % penalizováno jedním bodem (pro vaše ladìní si ji puste kolikrát chcete). 
 % Hlavní skript - volá všechny ostatní funkce
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+close all;clc;clear all
+
+% vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+% vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+% vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% odkomentovat nebo zakomentovat pro zobrazení postupu výpoètu parametrù
+% ident_param = 0; %parametry použije (již vypoètené - pro debugging)
+ident_param = 1; %identifikuje parametry
+
+% dále výbìr metody zmìnou promìnné [rms_type] viz níže (kekonci)
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+% ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+% ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % init
-close all;clc;clear all
 id = 136510;
 getResponse = @(u,t) (odezva(id, u, t)); 
 % stairs = @(x) (stairs(x))
@@ -45,31 +59,11 @@ global z
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Vlastní identifikace
 
-ident_param = 0; %parametry použije (již vypoètené - pro debugging)
-% ident_param = 1; %identifikuje parametry
 %% parametry
 if ident_param == 1
-%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% casovy vektor
-% tend = 3400;
-% tstep = 1.5;
-% z = tf('z',tstep);
-% 
-% 
-% % [K,Td,T] = c02_1(tend, tstep, nmean, stepRespFcn)
-% % t = ( 0:tstep:(tend-tstep) )';
-% 
-% [t,nsteps] = GET_t(tend,tstep);
-% % nsteps = length(t);
-% % N = nsteps;
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% vstupní signál
-
-
-
-%% rozdìlit namìøená data na identifikaèní a verifikaèní
-% -aby se volal jenom jednou odezva.p
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % :: jednotkový skok - pro urèení èasové konstanty
@@ -147,15 +141,14 @@ ons = ones(2,1);
 hold on
 plot(tt,ons*y_stable,'k', 'LineWidth',4, 'LineStyle', '--');
 plot(tt,ons*y_up,'g','LineWidth',4, 'LineStyle', '--');
-
 xlabel(str_ind)
 ylabel(str_val)
 
 %% zjistíme èas ve kterém mìl výstup hodnotu menší než [y_up]
 % ze signálu s nejmenší èasovou konstantou (pokud nemá u zaèátku výpadek)
 for e = 1:10
-    y = ystep{1};
-    tt = ystep_tt{1};
+    y = ystep{e};
+    tt = ystep_tt{e};
     % hodnoty krokù které splòují podmínku inverzní - lépe se hledá
 
     f = find(y>=y_up);
@@ -170,11 +163,9 @@ for e = 1:10
         break
     end
     if e==10
-       txt = sprintf('%s\n%s%i%s',...
+       error('%s\n%s%i%s',...
            'Èidlo opakovanì (10×) vypadáva pøi nejmenším zvoleném èasu vzorkování [min_tstep],',...
-           'prosím zvolte jinou hodnotu než ',min_tstep, '(pravdìpodobnì vìtší).');
-       
-       error(txt)
+           'prosím zvolte jinou hodnotu než ',min_tstep, '(pravdìpodobnì vìtší).')
     end
 end
 
@@ -185,6 +176,7 @@ SI=SI+1;subplot(SY,SX,SI)
 
 tend = 4*T_UP;
 TSTEP = T_UP / 10;
+% TSTEP = 1;
 [t,nsteps] = GET_t(tend,TSTEP);
 u = utry*ones(nsteps,1);
 
@@ -193,8 +185,9 @@ y = getResponse(u,t);
 tt = [0,tend];
 ons = ones(2,1);
 
-plot(t,y,'r')
+stairs(t,y,'r')
 hold on
+plot(t,y,'o--')
 plot(tt,ons*y_stable,'k', 'LineWidth',4, 'LineStyle', '--');
 plot(tt,ons*y_up,'g','LineWidth',4, 'LineStyle', '--');
 
@@ -213,29 +206,43 @@ axis tight
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % následující 3 vstupy vykreslit pospolu
 figure('Position',screen_full); SX=1 ;SY=3 ;SI=0;
+
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % :: bez vstupu
 tit = 'bez vstupu - nulový vstupní signál';
 
-tend = T_UP*100;
+tend = T_UP*1000;
 [t,nsteps] = GET_t(tend,TSTEP);
 
 u = zeros(nsteps,1);
 y = getResponse(u,t);
 
-mu = mean(y);
-o = mu * ones(1,nsteps);
-NOISE_MAX = max(abs(y));
-o_n = NOISE_MAX * ones(1,nsteps);
+% odstranit nulove
+yG = y;
+f = find(y==0);
+ind0 = f(1);
+yG(ind0) = [];
 
-% ploting
+%% vypocet
+% bezpeènostní koeficient
+coef = 1.1;
+NOISE_MAX = max(abs(yG)) * coef;
+mu = mean(yG);
+
+% preplot
+tt = [0,tend];
+ons = [1,1];
+o = mu * ons;
+N = NOISE_MAX * ons;
+
+%% ploting
 SI=SI+1;subplot(SY,SX,SI)
 stairs(t,u,'b')
 hold on
 stairs(t,y,'r')
-stairs(t,o,'c')
-stairs(t,o_n,'g')
-stairs(t,-o_n,'g')
+stairs(tt,o,'o--','LineWidth',3)
+stairs(tt,N,'g--','LineWidth',3)
+stairs(tt,-N,'g--','LineWidth',3)
 grid on
 title(tit)
 
@@ -520,7 +527,7 @@ for q=1:qint_count
     imean=imean+1;
 end
 y_stable = mean(y_stable_mean);
-K = y_stable / U_LINMAX;
+K = y_stable / U_LINMAX / 2;
 tit = sprintf('%s K[%.2f]',tit,K);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -562,23 +569,33 @@ axis tight
 
 else
     %% v pøípadì že nechci poèítat
-    K = 1.999
-    U_LINMAX = 2.6123
-    TSTEP = 0.42
+%     K = 1.999;
+%     U_LINMAX = 2.6123;
+%     TSTEP = 0.42;
+%     NOISE_MAX = 0.8707;
+    K = 1.00;
+    U_LINMAX = 2.32;
+    TSTEP = 0.35;
+    NOISE_MAX = 1.29;
+    
     T_UP = TSTEP * 10;
-    NOISE_MAX = 0.8707
 end
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
+
+%% zobraz použité parametry
+txt = sprintf('Paramerty:\nK = %.2f;\nU_LINMAX = %.2f;\nTSTEP = %.2f;\nNOISE_MAX = %.2f;',...
+    K, U_LINMAX, TSTEP, NOISE_MAX);
+disp(txt)
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % :: PRBS
 
 % tend = T_UP*100;
 full_prbs_nsteps = 40950;
 tend = ceil(full_prbs_nsteps * TSTEP);
-[t,nsteps] = GET_t(tend,TSTEP);
+% [t,nsteps] = GET_t(tend,TSTEP);
 t = ( 0:TSTEP:tend )';
 nsteps = full_prbs_nsteps;
 % size(t)
@@ -601,16 +618,14 @@ coef = 1 / 2  ;
 umax = U_LINMAX * coef;
 umin = -umax; 
 
-umax = U_LINMAX;
-umin = 0;
+% umax = U_LINMAX;
+% umin = 0;
 
 levels = [umin, umax];
 % levels = [-1 1];
 
 uall = idinput(nsteps, 'prbs', band, levels); % full prbs sequence
 tall = t;
-
-%% odezva
 
 %% prumìrování
 % y_ = zeros(nsteps,1);
@@ -621,6 +636,7 @@ tall = t;
 % end
 % y = y_ / qmax;
 
+%% odezva
 yall = getResponse(uall,tall);
 
 coef = 4/5;
@@ -630,66 +646,88 @@ y = yall(1:half);
 t = tall(1:half);
 
 %% lineární regrese
-% u(k)
-% u(k+1) = u( (1+1):(end-off+1) ) = u(2:end-1)
 
-% phi(u(k+1), u(k+2), .., u(k+m-1), y(k+1), y(k+2), .., y(k+n-1) ) 
-% theta(b0, b1, b2,.., bm, a0, a1, a2,..,an)
 
 % orders
-o_m = 1;
-o_n = 2;
+M = 2;
+N = 2;
 
-o_off = max([o_m, o_n]);
+% není pøevýšení
+% impulzová charakteristika
+% staèí 2 øád
 
-% typ MNÈ
-rms_types = {'normal', 'delayed observation'};
-rms_type = 'delayed observation'
+o_off = max([M, N]);
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% typ MNÈ
+% odkomentovat jeden typ pro výbìr
+rms_types = {'normal RMS', 'delayed_observation','added_model'};
+rms_type = 'normal RMS'; % nejlepší výsledky
+% rms_type = 'delayed_observation'; % výsledky
+% rms_type = 'added_model'; % - nedodìláno
+
+disp(sprintf('\nPoužitá metoda: %s\n',rms_type));
 
 %% normání metoda nejmenších ètvercù - bez pomocných promìnných
-if rms_type == 'delayed observation'
-k = 1:(length(u)-o_off);
+if strcmp(rms_type, 'normal RMS')
+lenu = length(u);
+k = lenu:-1:(o_off+1);
 % vytvoøení matice phi
 uks = [];
 yks = [];
-for i_m = 0 : (o_m)
-    uks = cat(2, uks, u(k+i_m) );
+for m = 0 : (M)
+    uks = cat(2, uks, u(k-m) );
 end
-u_k; u_k+1
-for i_n = 0 : (o_n-1)
-    yks = cat(2, yks, y(k+i_n) );
+for n = 1 : (N)
+    yks = cat(2, yks, y(k-n) );
 end
 
+% phi(u(k-1), u(k-2), .., u(k-m), -y(k-1), -y(k-2), .., -y(k-n) ) = [uks,yks]
+% theta(b0, b1, b2,.., bm, a0, a1, a2,..,an)
 end
 %% Zpoždìné pozorování - MNÈ s pomocnými promìnnými
 % zpozdíme výstupy - nejménì o 1 krok 
 % --> výstupy už potom nebudou korelované se šumem v aktuálním kroku
-if rms_type == 'delayed observation'
-d_off = 1;
-k = (1+d_off):(length(u)-o_off);
-% vytvoøení matice phi
-uks = [];
-yks = [];
-for i_m = 0 : (o_m)
-    uks = cat(2, uks, u(k+i_m) );
+if strcmp(rms_type, 'delayed_observation')
+    d_off = 1;
+    lenu = length(u);
+    k = lenu:-1:(o_off+1+d_off);
+    % vytvoøení matice phi
+    uks = [];
+    yks = [];
+    for m = 0 : (M)
+        uks = cat(2, uks, u(k-m) );
+    end
+    for n = 1 : (N)
+        yks = cat(2, yks, y(k-n-d_off) );
+    end
+
+end
+%% Pomocný model - MNÈ s pomocnými promìnnými
+if strcmp(rms_type, 'added_model')
     
-end
-for i_n = (0) : (o_n-1)
-    yks = cat(2, yks, y(k+i_n-d_off) );
-end
+ error('nedodìláno')
+%     d_off = 1;
+%     lenu = length(u);
+%     k = lenu:-1:(o_off+1+d_off);
+%     % vytvoøení matice phi
+%     uks = [];
+%     yks = [];
+%     for m = 0 : (M)
+%         uks = cat(2, uks, u(k-m) );
+%     end
+%     for n = 1 : (N)
+%         yks = cat(2, yks, y(k-n-d_off) );
+%     end
 
 end
 
-
-size(uks)
-size(yks)
 
 % naplnìní matic psi a phi
 psi = y(k);
 phi = cat( 2, uks, -yks );
 
 %% odstranìní výpadku èidla
-
 % abychom neodstranili první vzorek jenž je nulový
 % a zároveò zkrátíme abese nemazali indexi které nejsou do psi a phi vkladany
 y_not0 = y(2:(end-o_off));
@@ -697,66 +735,36 @@ ind0 = find(y_not0==0);
 % ind0 = ind0+1;
 
 if ind0
-%     size(psi)
     psi(ind0) = [];
-%     size(psi)
-
-    ncol = size(phi,2);
-    nrow = size(phi,1);
     qmax = length(ind0);
-    
-%     size(phi)
-    % musím odebírat odzadu
     for q = qmax:-1:1
         phi(ind0(q),:) = [];
     end
-%     size(phi)
-    
+    nrow = size(phi,1);
     disp(sprintf('Chyba èidla detekována!\n  Celkem [%i z %i] vzorkù muselo být vyøazeno!\n  [%.2f%%] z celkového množství',...
         qmax,nrow,qmax/nrow*100));
 end
-%% reseni
-% k = 2:length(u)
-% phi1 = [u(k-1), - y(k-1);
-% Y = y(k)
-% TH1 = PHI1 \ Y
-% Fz1 = (TH1(1)) / (z+TH1(2))
 
 %%
-% rad = 2;
+
 theta = phi \ psi;
-% theta = phi(1:end-2,:) \ y(3:end);
 
-
-% phi(u(k-1), u(k-2), .., u(k-m-1), y(k-1), y(k-2), .., y(k-n-1) ) 
 % theta(b0, b1, b2,.., bm, a0, a1, a2,..,an)
 
 z = tf('z',TSTEP);
 numerator = 0;
 denominator = 1;
-for i_m = 0 : (o_m)
-    numerator = numerator + theta(1+i_m) * z^+i_m;
+
+for m = 0 : (M)
+    numerator = numerator + theta(1+m) * z^-m;
 end
-o_off = o_m+1;
-for i_n = 0 : (o_n-1)
-    denominator = denominator + theta(o_off+1+i_n) * z^+i_n;
+o_off = M+1;
+for n = 0 : (N-1)
+    denominator = denominator + theta(o_off+1+n) * z^-n;
 end
-
-% for q = 0 : (n)
-%     denominator = denominator + theta(m+1+q) * z^-q;
-% end
-
-% b0 = theta(q); q=q+1;
-% b1 = theta(q); q=q+1;
-% a0 = theta(q); q=q+1;
-% a1 = theta(q); q=q+1;
-
-% Fz = (b0*z^-1) / (1 + a0*z^-1)
-% Fz = (b0*z^-1) / (1 + a0*z^-1 + a1*z^-2)
-% Fz = (b0*z^-1 + b1*z^-2) / (1 + a0*z^-1 + a1*z^-2)
 
 % Fz =  numerator / denominator  
-K = K*0.5;
+
 delay = 1;
 % delay = z^-1;
 Fz = K * numerator / denominator  * delay
@@ -773,7 +781,7 @@ yi = lsim(Fz,u,t);
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% PLOTY
-figure('Position',screen_full);  SX=1 ;SY=2 ;SI=0;
+figure('Position',screen_full);  SX=1 ;SY=3 ;SI=0;
 SI=SI+1;subplot(SY,SX,SI)
 stairs(t,u,'g')
 hold on
@@ -791,11 +799,12 @@ title('nauèená data - trénovací množina - zkouška identifikace')
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % ovìøení identifikace
-u = uall(half:end);
-y = yall(half:end);
-t = tall(half:end);
-yi = lsim(Fz,u,t);
-
+half2 = half;
+u = uall(half2:end);
+y = yall(half2:end);
+t = tall(half2:end) - t(half2);
+yi_half = lsim(Fz,u,t);
+yi = yi_half;
 %% nìjakou porovnávací funkci..
 
 
@@ -814,8 +823,33 @@ ylabel(str_val)
 axis tight
 title('nenauèená data - ovìøení identifikace')
 
+%% výøez
+
+coef_zoom = 1/100;
+zoom = floor(nsteps * coef_zoom);
+zoom_and_half = zoom + half;
+u = uall(half:zoom_and_half);
+y = yall(half:zoom_and_half);
+t = tall(half:zoom_and_half);
+yi = yi_half(1:(zoom+1));
+
+%% ploty
+SI=SI+1;subplot(SY,SX,SI)
+stairs(t,u,'g')
+hold on
+stairs(t,y,'r')
+stairs(t,yi,'b')
+
+grid on
+legend('u(k)','y(k)','y_{ident}(k)')
+xlabel(str_tim)
+ylabel(str_val)
+axis tight
+title('nenauèená data - ovìøení identifikace - výøez')
+
+
 %% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-error('I don''t want to play anymore')
+% error('I don''t want to play anymore')
 
 
 
@@ -841,3 +875,7 @@ error('I don''t want to play anymore')
 %   -6.981e-17 z + 1.097e-15
 %   ------------------------
 %   4.673e-15 z - 4.219e-15
+
+
+% phi(u(k+1), u(k+2), .., u(k+m-1), y(k+1), y(k+2), .., y(k+n-1) ) 
+% theta(b0, b1, b2,.., bm, a0, a1, a2,..,an)
