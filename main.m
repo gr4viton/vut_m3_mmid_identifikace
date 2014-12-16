@@ -581,10 +581,10 @@ tend = ceil(full_prbs_nsteps * TSTEP);
 [t,nsteps] = GET_t(tend,TSTEP);
 t = ( 0:TSTEP:tend )';
 nsteps = full_prbs_nsteps;
-size(t)
+% size(t)
 t = t(1:nsteps);
-size(t)
-nsteps
+% size(t)
+% nsteps
 
 % where B is such that the signal is constant over intervals of length 1/B
 % (the clock period)
@@ -597,11 +597,13 @@ band = [0, 0.1];
 
 % ____________________________________________________
 % rozsah vstupniho signalu
-% U_LINMAX = 5;
 coef = 1 / 2  ;
 umax = U_LINMAX * coef;
 umin = -umax; 
-% umin = 0;
+
+umax = U_LINMAX;
+umin = 0;
+
 levels = [umin, umax];
 % levels = [-1 1];
 
@@ -638,25 +640,62 @@ t = tall(1:half);
 o_m = 1;
 o_n = 2;
 
-off = max([o_m, o_n]);
-k = 1:(length(u)-off);
+o_off = max([o_m, o_n]);
 
+% typ MNÈ
+rms_types = {'normal', 'delayed observation'};
+rms_type = 'delayed observation'
+
+%% normání metoda nejmenších ètvercù - bez pomocných promìnných
+if rms_type == 'delayed observation'
+k = 1:(length(u)-o_off);
 % vytvoøení matice phi
 uks = [];
 yks = [];
 for i_m = 0 : (o_m)
     uks = cat(2, uks, u(k+i_m) );
 end
+u_k; u_k+1
 for i_n = 0 : (o_n-1)
     yks = cat(2, yks, y(k+i_n) );
 end
 
+end
+%% Zpoždìné pozorování - MNÈ s pomocnými promìnnými
+% zpozdíme výstupy - nejménì o 1 krok 
+% --> výstupy už potom nebudou korelované se šumem v aktuálním kroku
+if rms_type == 'delayed observation'
+d_off = 1;
+k = (1+d_off):(length(u)-o_off);
+% vytvoøení matice phi
+uks = [];
+yks = [];
+for i_m = 0 : (o_m)
+    uks = cat(2, uks, u(k+i_m) );
+    
+end
+for i_n = (0) : (o_n-1)
+    yks = cat(2, yks, y(k+i_n-d_off) );
+end
+
+end
+
+
+size(uks)
+size(yks)
+
+% naplnìní matic psi a phi
 psi = y(k);
 phi = cat( 2, uks, -yks );
 
 %% odstranìní výpadku èidla
-y_not0 = y(2:end);
+
+% abychom neodstranili první vzorek jenž je nulový
+% a zároveò zkrátíme abese nemazali indexi které nejsou do psi a phi vkladany
+y_not0 = y(2:(end-o_off));
 ind0 = find(y_not0==0);
+% ind0 = ind0+1;
+
 if ind0
 %     size(psi)
     psi(ind0) = [];
@@ -673,7 +712,8 @@ if ind0
     end
 %     size(phi)
     
-    disp(sprintf('Chyba èidla detekována! Celkem [%i z %i] vzorkù (%.2f%%) muselo být vyøazeno!',qmax,nrow,qmax/nrow*100));
+    disp(sprintf('Chyba èidla detekována!\n  Celkem [%i z %i] vzorkù muselo být vyøazeno!\n  [%.2f%%] z celkového množství',...
+        qmax,nrow,qmax/nrow*100));
 end
 %% reseni
 % k = 2:length(u)
@@ -697,9 +737,9 @@ denominator = 1;
 for i_m = 0 : (o_m)
     numerator = numerator + theta(1+i_m) * z^+i_m;
 end
-off = o_m+1;
+o_off = o_m+1;
 for i_n = 0 : (o_n-1)
-    denominator = denominator + theta(off+1+i_n) * z^+i_n;
+    denominator = denominator + theta(o_off+1+i_n) * z^+i_n;
 end
 
 % for q = 0 : (n)
@@ -728,7 +768,7 @@ yi = lsim(Fz,u,t);
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% metoda pomocných promìnných
+
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -773,8 +813,10 @@ xlabel(str_tim)
 ylabel(str_val)
 axis tight
 title('nenauèená data - ovìøení identifikace')
+
 %% !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 error('I don''t want to play anymore')
+
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
