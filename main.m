@@ -758,25 +758,18 @@ denominator = 1;
 for m = 0 : (M)
     numerator = numerator + theta(1+m) * z^-m;
 end
+numerator = numerator * z^-1; % ze vzorkování
 o_off = M+1;
 for n = 0 : (N-1)
     denominator = denominator + theta(o_off+1+n) * z^-n;
 end
 
-% Fz =  numerator / denominator  
-
-delay = 1;
-% delay = z^-1;
-Fz = K * numerator / denominator  * delay
-% s K nebo bez?
-% * z^-1
+Fz = K * numerator / denominator  
 
 % count the response of identified system
 yi = lsim(Fz,u,t);
 
-
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
 
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
